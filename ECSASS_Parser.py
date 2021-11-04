@@ -327,6 +327,46 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
                                 "string slicing.")
                 temp = parts[-1][:start] + parts[-1][end:]
                 parts[-1] = temp
+        # Join and overlap-join
+        elif char == "+":
+            operations.append([1, None])
+        elif ECSASS_seq[i:i+2] == "~+":
+            operations.append([2, None])
+            i += 1
+        # Duplicate and overlap-duplicate
+        elif char == "*" or ECSASS_seq[i:i+2] == "~*":
+            # Check for preceding part
+            if not parts: raise Exception("ERROR: Sequence required before "\
+                    "operator.")
+            # Duplicate type
+            if char == "*":
+                type_ = 3 # 3 for no overlap, 4 for overlap
+                i += 1
+            else:
+                type_ = 4
+                i += 2
+            # First
+            try:
+                char = ECSASS_seq[i]
+            except:
+                raise Exception("ERROR: Multiplier required.")
+            # Get number
+            while char and char.isdigit():
+                sb += char
+                i += 1
+                try:
+                    char = ECSASS_seq[i]
+                except:
+                    char = ""
+                    i += 1
+            i -= 1
+            # Convert and append
+            num = int(sb)
+            operations.append([type_, num])
+            sb = ""
+        # Invalid
+        else:
+            raise Exception("ERROR: Unknown parsing error.")     
         # Prep for next loop iteration
         i += 1
     # Unclosed loop
@@ -334,8 +374,21 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
         raise Exception("ERROR: Unmatched opening bracket.")
     # Combine Parts
     while operations:
-        operation = operations[0]
-        pass
+        op_type, arg2 = operations.pop(0)
+        if op_type == 1: # Add
+            parts[0] = parts[0] + parts.pop(1)
+        elif op_type == 2: # Overlap-add
+            parts[0] = parts[0] + parts.pop(1) # TODO - Use overlap-add instead
+        elif op_type == 3: # Duplicate
+            parts[0] = parts[0] * arg2
+        elif op_type == 4: # Overlap-duplicate
+            parts[0] = parts[0] * arg2 # TODO - Use overlap-dup instead
+        else:
+            raise Exception("\nCRITICAL ERROR\n")
+    # Excess parts
+    if len(parts) > 1:
+        raise Exception("ERROR: Excess components in the formula. Operator "\
+                "may potentially be missing.")
     # Return
     return parts[0]
 
