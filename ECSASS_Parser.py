@@ -136,8 +136,8 @@ LIST__fasta = set(["fa", "FA", "Fa", "fasta", "FASTA", "Fasta"])
 
 # Functions ####################################################################
 
-def Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred, ignore_bad_slicing):
+def Parse_ECSASS(ECSASS_seq, seq_folders, window_range, error_max,
+            ignore_bad_slicing, mismatch_handling):
     """
     Parse and return an ECSASS sequence and transform it into a normal genetic
     sequence.
@@ -149,39 +149,38 @@ def Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
             contain whitespaces, users may need to resort to _Parse_ECSASS(),
             which may be rendered nonfunctional by the presence of other
             whitespace characters.
-    @input_sequences
+    @seq_folders
             (list<str - dirpath>)
             The folders containing the FASTA files containing the sequences
             which will be used to generate the final sequences. In the event of
             a name conflict, the folders listed earlier in this list will be
             given priority.
-    @overhang_min
-            (int)
-            The minimum window size allowed for overlap-joins and
-            overlap-duplicates.
-    @overhang_max
-            (int)
-            The maximum window size allowed for overlap-joins and
-            overlap-duplicates.
+    @window_range
+            (list<int>)
+            A list of acceptable overlap window sizes, in order of preference.
     @error_max
             (int)
             The maximum number of mismatches permitted for two sequences to
             qualify for an overlap-join or an overlap-duplicate.
-    @highest_preferred
-            (bool)
-            Whether or not the largest qualifying window size will be used for
-            overlap-joins and overlap-duplicates. If False, the smallest
-            qualifying window will be used instead.
     @ignore_bad_slicing
             (bool)
             Whether or not to ignore bad string slicing indexes, typically for
             when the START index is higher than the END index.
+    @mismatch_handling
+            (int)
+            How to handle mismatches, in the event some mismatches (@error_max)
+            are permitted for overlap-joins and overlap-duplicates:
+                0:  Use "N"
+                1:  Use the char from the first sequence in joins
+                    Use the char from the 5' end in duplicates
+                2:  Use the char from the second sequence in joins
+                    Use the char from the 3' end in duplicates
     
     Parse_ECSASS(str, str, int, int, int, bool) -> str
     """
     ECSASS_seq = Strip_Whitespaces(ECSASS_seq)
-    return _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred, ignore_bad_slicing)
+    return _Parse_ECSASS(ECSASS_seq, seq_folders, window_range, error_max,
+            ignore_bad_slicing, mismatch_handling)
 
 def Strip_Whitespaces(string):
     """
@@ -192,8 +191,8 @@ def Strip_Whitespaces(string):
         if c != " ": sb += c
     return sb
 
-def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred, ignore_bad_slicing):
+def _Parse_ECSASS(ECSASS_seq, seq_folders, window_range, error_max,
+            ignore_bad_slicing, mismatch_handling):
     """
     The recursive, subfunction of Parse_ECSASS(). Assumes [ECSASS_seq] contains
     no whitespace characters.
@@ -218,9 +217,8 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
             if bracket_level < 0:
                 raise Exception("ERROR: Unmatched closing bracket.")
             elif bracket_level == 0:
-                sb = _Parse_ECSASS(sb[1:], seq_folders, overhang_min,
-                        overhang_max, error_max, highest_preferred,
-                        ignore_bad_slicing)
+                sb = _Parse_ECSASS(sb[1:], seq_folders, window_range, error_max,
+                        ignore_bad_slicing, mismatch_handling)
                 parts.append(sb)
                 sb = ""
         # In brackets
@@ -266,8 +264,8 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
                 sb += char
                 i += 1
             sb = sb[:-1] # Remove trailing bracket
-            sb = _Parse_ECSASS(sb, seq_folders, overhang_min, overhang_max,
-                    error_max, highest_preferred, ignore_bad_slicing)
+            sb = _Parse_ECSASS(sb, seq_folders, window_range, error_max,
+                        ignore_bad_slicing, mismatch_handling)
             sb = Get_Complement(sb, True)
             parts.append(sb)
             sb = ""
@@ -378,11 +376,13 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
         if op_type == 1: # Add
             parts[0] = parts[0] + parts.pop(1)
         elif op_type == 2: # Overlap-add
-            parts[0] = parts[0] + parts.pop(1) # TODO - Use overlap-add instead
+            parts[0] = Overlap_Add(parts[0], parts.pop(1), window_range,
+                    error_max, mismatch_handling)
         elif op_type == 3: # Duplicate
             parts[0] = parts[0] * arg2
         elif op_type == 4: # Overlap-duplicate
-            parts[0] = parts[0] * arg2 # TODO - Use overlap-dup instead
+            parts[0] = Overlap_Dup(parts[0], arg2, window_range, error_max,
+                    mismatch_handling)
         else:
             raise Exception("\nCRITICAL ERROR\n")
     # Excess parts
@@ -428,5 +428,59 @@ def Get_Seq_From_File(name, folders):
         seq += line
     f.close()
     return seq
+
+def Overlap_Add(seq1, seq2, window_range, error_max, mismatch_handling):
+    """
+    """
+    overlap_size = Find_Overlap(seq1, seq2, window_range, error_max)
+    if overlap_size == -1: return seq1 + seq2
+    else:
+        junction = Get_Junction(seq1, seq2, overlap_size, mismatch_handling)
+        return seq1[:-overlap_size] + junction + seq2[overlap_size:]
+    
+def Overlap_Dup(seq1, multiplier, window_range, error_max, mismatch_handling):
+    """
+    """
+    overlap_size = Find_Overlap(seq1, seq1, window_range, error_max)
+    if overlap_size == -1: return seq1 * multiplier
+    else: 
+        junction = Get_Junction(seq1, seq1, overlap_size, mismatch_handling)
+        multi = (junction + seq1[overlap_size:-overlap_size]) * multiplier
+        return multi + junction
+
+def Find_Overlap(seq1, seq2, window_range, error_max):
+    """
+    """
+    max_size = min([len(seq1), len(seq2)])
+    for size in window_range:
+        if size > max_size: pass
+        else:
+            errors = 0
+            i = 0
+            i_ = -size
+            while i < size:
+                if seq1[i_] != seq2[i]:
+                    errors += 1
+                    if errors > error_max: i = size
+                i += 1
+                i_ += 1
+            if errors <= error_max: return size
+    return -1
+
+def Get_Junction(seq1, seq2, overlap_size, mismatch_handling):
+    """
+    """
+    sb = ""
+    i = 0
+    i_ = -overlap_size
+    while i < overlap_size:
+        if seq1[i_] == seq2[i]: sb += seq1[i_]
+        else:
+            if mismatch_handling == 1: sb += seq1[i_]
+            elif mismatch_handling == 2: sb += seq2[i]
+            else: sb += "N"
+        i += 1
+        i_ += 1
+    return sb
 
 
