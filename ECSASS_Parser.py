@@ -137,7 +137,7 @@ LIST__fasta = set(["fa", "FA", "Fa", "fasta", "FASTA", "Fasta"])
 # Functions ####################################################################
 
 def Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred):
+            highest_preferred, ignore_bad_slicing):
     """
     Parse and return an ECSASS sequence and transform it into a normal genetic
     sequence.
@@ -172,12 +172,16 @@ def Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
             Whether or not the largest qualifying window size will be used for
             overlap-joins and overlap-duplicates. If False, the smallest
             qualifying window will be used instead.
+    @ignore_bad_slicing
+            (bool)
+            Whether or not to ignore bad string slicing indexes, typically for
+            when the START index is higher than the END index.
     
     Parse_ECSASS(str, str, int, int, int, bool) -> str
     """
     ECSASS_seq = Strip_Whitespaces(ECSASS_seq)
     return _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred)
+            highest_preferred, ignore_bad_slicing)
 
 def Strip_Whitespaces(string):
     """
@@ -189,11 +193,12 @@ def Strip_Whitespaces(string):
     return sb
 
 def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max,
-            highest_preferred):
+            highest_preferred, ignore_bad_slicing):
     """
     The recursive, subfunction of Parse_ECSASS(). Assumes [ECSASS_seq] contains
     no whitespace characters.
     """
+    # print("\nPARSING:\n\t" + ECSASS_seq + "\n") # Development tool
     # Flags and counters
     parts = []
     operations = []
@@ -214,7 +219,8 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
                 raise Exception("ERROR: Unmatched closing bracket.")
             elif bracket_level == 0:
                 sb = _Parse_ECSASS(sb[1:], seq_folders, overhang_min,
-                        overhang_max, error_max, highest_preferred)
+                        overhang_max, error_max, highest_preferred,
+                        ignore_bad_slicing)
                 parts.append(sb)
                 sb = ""
         # In brackets
@@ -261,10 +267,66 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, overhang_min, overhang_max, error_max
                 i += 1
             sb = sb[:-1] # Remove trailing bracket
             sb = _Parse_ECSASS(sb, seq_folders, overhang_min, overhang_max,
-                    error_max, highest_preferred)
+                    error_max, highest_preferred, ignore_bad_slicing)
             sb = Get_Complement(sb, True)
             parts.append(sb)
             sb = ""
+            i -= 1
+        # Slice
+        elif char == "[" or ECSASS_seq[i:i+2] == "![":
+            # Check for string to slice
+            if not parts: raise Exception("ERROR: No sequence to slice.")
+            # Slice type
+            if char == "[":
+                flag = True # True for keep, False for excise
+                i += 1
+            else:
+                flag = False
+                i += 2
+            # Setup
+            start = ""
+            end = ""
+            # Parse first number
+            loop = True
+            while loop:
+                try:
+                    char = ECSASS_seq[i]
+                except:
+                    raise Exception("ERROR: Unmatched opening square bracket.")
+                if char == ":": loop = False
+                else: start += char
+                i += 1
+            # Parse second number
+            loop = True
+            while loop:
+                try:
+                    char = ECSASS_seq[i]
+                except:
+                    raise Exception("ERROR: Unmatched opening square bracket.")
+                if char == "]": loop = False
+                else: end += char
+                i += 1
+            i -= 1 # Undo last forward
+            # Process numbers
+            try:
+                if start: start = int(start)
+                else: start = None
+                if end: end = int(end)
+                else: end = None
+            except:
+                raise Exception("ERROR: Invalid indexes for string slicing.")
+            # Slice
+            if flag: parts[-1] = parts[-1][start:end]
+            else:
+                if start and end:
+                    length = len(parts[-1])
+                    if start < 0: start = length + start
+                    if end < 0: end = length + end
+                    if end < start and not ignore_bad_slicing:
+                        raise Exception("ERROR: Overlapping indexes for "\
+                                "string slicing.")
+                temp = parts[-1][:start] + parts[-1][end:]
+                parts[-1] = temp
         # Prep for next loop iteration
         i += 1
     # Unclosed loop
