@@ -431,6 +431,40 @@ def Get_Seq_From_File(name, folders):
 
 def Overlap_Add(seq1, seq2, window_range, error_max, mismatch_handling):
     """
+    Attempts to overlap-join two sequences.
+    
+    The function scans the list of acceptable window ranges, and searches for
+    the first window size for which the last N nucleotides of [seq1] and the
+    last N nucleotides of [seq2] match each other with [error_max] or fewer
+    mismatches.
+    
+    If no acceptable window size is found, the two sequences will be joined
+    normally.
+    
+    @seq1
+            (str)
+            The first nucleotide sequence. Will form the 5' end of the resulting
+            chimeric sequence.
+    @seq2
+            (str)
+            The second nucleotide sequence. Will form the 3' end of the
+            resulting chimeric sequence.
+    @window_range
+            (list<int>)
+            A list of acceptable window sizes, in order of preference.
+    @error_max
+            (int)
+            The maximum permitted number of mismatches for a window to be
+            classified as an overlap.
+    @mismatch_handling
+            (int)
+            How mismatches should be handled when generating the resulting
+            chimeric sequence:
+                0:  Use "N"
+                1:  Use the nucleotide in [seq1]
+                2:  Use the nucleotide in [seq2]
+        
+    Overlap_Add(str, str, list<int>, int, int) -> str
     """
     overlap_size = Find_Overlap(seq1, seq2, window_range, error_max)
     if overlap_size == -1: return seq1 + seq2
@@ -440,6 +474,38 @@ def Overlap_Add(seq1, seq2, window_range, error_max, mismatch_handling):
     
 def Overlap_Dup(seq1, multiplier, window_range, error_max, mismatch_handling):
     """
+    Attempts to overlap-duplicate a sequence
+    
+    The function scans the list of acceptable window ranges, and searches for
+    the first window size for which the last N nucleotides of [seq1] and the
+    last N nucleotides of [seq1] match each other with [error_max] or fewer
+    mismatches.
+    
+    The overlap junction will only appear once, not twice in the resulting
+    back-to-back duplicates of [seq1]
+    
+    @seq1
+            (str)
+            The nucleotide sequence to be duplicated.
+    @multiplier
+            (int)
+            The number of times the sequence is to be duplicated.
+    @window_range
+            (list<int>)
+            A list of acceptable window sizes, in order of preference.
+    @error_max
+            (int)
+            The maximum permitted number of mismatches for a window to be
+            classified as an overlap.
+    @mismatch_handling
+            (int)
+            How mismatches should be handled when generating the resulting
+            chimeric sequence:
+                0:  Use "N"
+                1:  Use the nucleotide in [seq1]
+                2:  Use the nucleotide in [seq2]
+        
+    Overlap_Add(str, int, list<int>, int, int) -> str
     """
     overlap_size = Find_Overlap(seq1, seq1, window_range, error_max)
     if overlap_size == -1: return seq1 * multiplier
@@ -450,6 +516,27 @@ def Overlap_Dup(seq1, multiplier, window_range, error_max, mismatch_handling):
 
 def Find_Overlap(seq1, seq2, window_range, error_max):
     """
+    Return the highest preferred window size for which the last N nucleotides of
+    [seq1] and the first N nucleotides of [seq2] overlap with [error_max] or
+    fewer matches.
+    
+    @seq1
+            (str)
+            The first nucleotide sequence. Will form the 5' end of the resulting
+            chimeric sequence.
+    @seq2
+            (str)
+            The second nucleotide sequence. Will form the 3' end of the
+            resulting chimeric sequence.
+    @window_range
+            (list<int>)
+            A list of acceptable window sizes, in order of preference.
+    @error_max
+            (int)
+            The maximum permitted number of mismatches for a window to be
+            classified as an overlap.
+    
+    Find_Overlap(str, str, list<int>, int) -> int
     """
     max_size = min([len(seq1), len(seq2)])
     for size in window_range:
@@ -469,6 +556,29 @@ def Find_Overlap(seq1, seq2, window_range, error_max):
 
 def Get_Junction(seq1, seq2, overlap_size, mismatch_handling):
     """
+    Return the junction sequence formed by merging the last [overlap_size]
+    nucleotides of [seq1] with the last [overlap_size] nucleotides of [seq2].
+    
+    @seq1
+            (str)
+            The first nucleotide sequence. Will provide the 5' end of the
+            resulting chimeric sequence.
+    @seq2
+            (str)
+            The second nucleotide sequence. Will provide the 3' end of the
+            resulting chimeric sequence.
+    @overlap_size
+            (int)
+            The size of the overlap junction.
+    @mismatch_handling
+            (int)
+            How mismatches should be handled when generating the resulting
+            chimeric sequence:
+                0:  Use "N"
+                1:  Use the nucleotide in [seq1]
+                2:  Use the nucleotide in [seq2]
+        
+    Overlap_Add(str, str, int, int) -> str
     """
     sb = ""
     i = 0
