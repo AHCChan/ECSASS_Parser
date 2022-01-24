@@ -317,9 +317,9 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, window_range, error_max,
             if flag: parts[-1] = parts[-1][start:end]
             else:
                 if start and end:
-                    length = len(parts[-1])
-                    if start < 0: start = length + start
-                    if end < 0: end = length + end
+                    length_ = len(parts[-1])
+                    if start < 0: start = length_ + start
+                    if end < 0: end = length_ + end
                     if end < start and not ignore_bad_slicing:
                         raise Exception("ERROR: Overlapping indexes for "\
                                 "string slicing.")
