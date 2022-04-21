@@ -323,7 +323,11 @@ def _Parse_ECSASS(ECSASS_seq, seq_folders, window_range, error_max,
                     if end < start and not ignore_bad_slicing:
                         raise Exception("ERROR: Overlapping indexes for "\
                                 "string slicing.")
-                temp = parts[-1][:start] + parts[-1][end:]
+                    temp = parts[-1][:start] + parts[-1][end:]
+                elif start:
+                    temp = parts[-1][:start]
+                elif end:
+                    temp = parts[-1][end:]
                 parts[-1] = temp
         # Join and overlap-join
         elif char == "+":
